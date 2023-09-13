@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-microservice
+  annotations: # <--  Add Prometheus annotations here
+    prometheus.io/scrape: 'true'
+    prometheus.io/path: '/orders/metrics'
+    prometheus.io/port: '8081'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders-microservice
+  template:
+    metadata:
+      labels:
+        app: orders-microservice
+    spec:
+      containers:
+        - name: orders-microservice
+          image: 2741/orders-microservice:latest
+          ports:
+            - containerPort: 8081
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_SECRET_ACCESS_KEY
