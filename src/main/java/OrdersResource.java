@@ -198,7 +198,7 @@ public class OrdersResource {
     @Retry(maxRetries = 3) // Retry up to 3 times
     @Fallback(fallbackMethod = "addOrderFallback") // Fallback method if all retries fail
     @CircuitBreaker(requestVolumeThreshold = 4) // Use circuit breaker   after 4 failed requests
-    @Bulkhead(6) // Lim it concurrent call s to 5
+    @Bulkhead(6) // Lim it concurrent c all s to 5
     @Traced
     public Response checkoutOrder(Order order) {
         // Parse the token f rom t he Authorization header
