@@ -1,5 +1,3 @@
-import com.auth0.jwk.JwkException;
-import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.google.gson.Gson;
 import com.kumuluz.ee.discovery.annotations.DiscoverService;
 import com.kumuluz.ee.logs.cdi.Log;
@@ -10,10 +8,18 @@ import org.eclipse.microprofile.faulttolerance.*;
 import org.eclipse.microprofile.jwt.Claim;
 import org.eclipse.microprofile.jwt.ClaimValue;
 import org.eclipse.microprofile.jwt.JsonWebToken;
-//import org.eclipse.microprofile.metrics.annotation.ConcurrentGauge;
 import org.eclipse.microprofile.metrics.annotation.Counted;
 import org.eclipse.microprofile.metrics.annotation.Metered;
 import org.eclipse.microprofile.metrics.annotation.Timed;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameters;
+import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.opentracing.Traced;
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
 import software.amazon.awssdk.regions.Region;
@@ -90,16 +96,58 @@ public class OrdersResource {
     private Optional<URL> cartServiceUrl;
 
     @GET
+    @Operation(
+            summary = "Fetch orders for the user",
+            description = "Fetches the list of orders placed by the authenticated user with pagination support."
+    )
+    @APIResponses(value = {
+            @APIResponse(
+                    responseCode = "200",
+                    description = "Orders successfully fetched",
+                    content = @Content(
+                            mediaType = "application/json"
+                    )
+            ),
+            @APIResponse(
+                    responseCode = "401",
+                    description = "Unauthorized, invalid token",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = Error.class)
+                    )
+            ),
+            @APIResponse(
+                    responseCode = "500",
+                    description = "Internal server error",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = Error.class)
+                    )
+            )
+    })
+    @Parameters(value = {
+            @Parameter(
+                    name = "page",
+                    description = "The page number",
+                    required = false,
+                    schema = @Schema(type = SchemaType.INTEGER, defaultValue = "1")
+            ),
+            @Parameter(
+                    name = "pageSize",
+                    description = "The number of items per page",
+                    required = false,
+                    schema = @Schema(type = SchemaType.INTEGER, defaultValue = "10")
+            )
+    })
     @Produces(MediaType.APPLICATION_JSON)
     @Counted(name = "getOrdersCount", description = "Count of getOrders calls")
     @Timed(name = "getOrdersTime", description = "Time taken to fetch a orders")
     @Metered(name = "getOrdersMetered", description = "Rate of getOrders calls")
-//    @ConcurrentGauge(name = "getOrdersConcurrent", description = "Concurrent getOrders calls")
-    @Timeout(value = 20, unit = ChronoUnit.SECONDS) // Timeout after 20 seconds
+    @Timeout(value = 50, unit = ChronoUnit.SECONDS) // Timeout after 50 seconds
     @Retry(maxRetries = 3) // Retry up to 3 times
     @Fallback(fallbackMethod = "getOrdersFallback") // Fallback method if all retries fail
-    @CircuitBreaker(requestVolumeThreshold = 4) // Use circuit breaker after 4 failed requests
-    @Bulkhead(5) // Limit concurrent calls to 5
+    @CircuitBreaker(requestVolumeThreshold = 4, failureRatio = 0.5, delay = 2000)
+    @Bulkhead(100) // Limit concurrent calls to 100
     @Traced
     public Response getOrders(@QueryParam("page") Integer page,
                               @QueryParam("pageSize") Integer pageSize) {
@@ -113,8 +161,10 @@ public class OrdersResource {
         }
 
         if (jwt == null) {
-            LOGGER.info("Unauthorized: only authenticated users can view his/hers cart.");
-            return Response.ok("Unauthorized: only authenticated users can view his/hers cart.").build();
+            LOGGER.log(Level.SEVERE, "Token verification failed");
+            return Response.status(Response.Status.UNAUTHORIZED)
+                    .entity("Invalid token.")
+                    .build();
         }
         String userId = optSubject.getValue().orElse("default_value");
 
@@ -169,14 +219,18 @@ public class OrdersResource {
             responseBody.put("orders", orders);
             responseBody.put("totalPages", totalPages);
             span.setTag("completed", true);
-
+            LOGGER.log(Level.INFO, "User's orders obtained successfully");
             return Response.ok().entity(new Gson().toJson(responseBody)).build();
 
         } catch (DynamoDbException e) {
-            LOGGER.warning("Error while getting orders" + e);
+            LOGGER.log(Level.SEVERE, "Failed to obtain user's orders", e);
             span.setTag("error", true);
-            throw new WebApplicationException("Error while getting orders. Please try again later.", e, Response.Status.INTERNAL_SERVER_ERROR);
-        } finally {
+            Map<String, Object> responseBody = new HashMap<>();
+            responseBody.put("description", "Failed to obtain user's orders. Please try again later.");
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(new Gson().toJson(responseBody))
+                    .build();
+        }finally {
             span.finish();
         }
     }
@@ -185,27 +239,41 @@ public class OrdersResource {
         LOGGER.info("Fallback activated: Unable to fetch orders at the moment for token: " + optSubject.getValue().orElse("default_value"));
         Map<String, String> response = new HashMap<>();
         response.put("description", "Unable to fetch orders at the moment. Please try again later.");
-        return Response.ok(response).build();
+        return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                .entity(new Gson().toJson(response))
+                .build();
     }
 
 
+
     @POST
+    @Operation(summary = "Perform checkout of a cart",
+            description = "Processes the order and returns payment confirmation.")
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Payment successful"),
+            @APIResponse(responseCode = "401", description = "Unauthorized access, Invalid token"),
+            @APIResponse(responseCode = "500", description = "Internal Server Error")
+    })
+    @RequestBody(description = "Order object that needs to be processed", required = true,
+            content = @Content(schema = @Schema(implementation = Order.class)))
+
     @Consumes(MediaType.APPLICATION_JSON)
     @Counted(name = "addOrderCount", description = "Count of addOrder calls")
     @Timed(name = "addOrderTime", description = "Time taken to add a order")
     @Metered(name = "addOrderMetered", description = "Rate of addOrder calls")
-    @Timeout(value = 20, unit = ChronoUnit.SECONDS) // Timeout after 20 seconds
+    @Timeout(value = 50, unit = ChronoUnit.SECONDS) // Timeout after 50 seconds
     @Retry(maxRetries = 3) // Retry up to 3 times
     @Fallback(fallbackMethod = "addOrderFallback") // Fallback method if all retries fail
-    @CircuitBreaker(requestVolumeThreshold = 4) // Use circuit breaker   after 4 failed requests
-    @Bulkhead(6) // Lim it concurrent c all s to 5
+    @CircuitBreaker(requestVolumeThreshold = 4, failureRatio = 0.5, delay = 2000)
+    @Bulkhead(100) // Lim it concurrent c all s to 100
     @Traced
     public Response checkoutOrder(Order order) {
-        // Parse the token f rom t he Authorization header
 
         if (jwt == null) {
-            LOGGER.info("Unauthorized: only authenticated users can add products to his/hers cart.");
-            return Response.status(Response.Status.UNAUTHORIZED).entity("Unauthorized: only authenticated users can add products to his/hers cart.").build();
+            LOGGER.log(Level.SEVERE, "Token verification failed");
+            return Response.status(Response.Status.UNAUTHORIZED)
+                    .entity("Invalid token.")
+                    .build();
         }
         String userId = optSubject.getValue().orElse("default_value");
 
@@ -266,20 +334,26 @@ public class OrdersResource {
                     throw new RuntimeException("Failed : HTTP error code : " + response.getStatus());
                 }
             }
+            LOGGER.info("Payment successful");
             span.setTag("completed", true);
-            return Response.ok("Order processed successfully.").build();
+            return Response.status(Response.Status.OK)
+                    .entity(new Gson().toJson("Payment successful"))
+                    .build();
         } catch (DynamoDbException | MalformedURLException e) {
-            LOGGER.log(Level.SEVERE, "Error while adding order for user " + userId, e);
+            LOGGER.log(Level.SEVERE, "Failed to process checkout", e);
             span.setTag("error", true);
-            throw new WebApplicationException("Error while adding order. Please try again later.", e, Response.Status.INTERNAL_SERVER_ERROR);
+            throw new WebApplicationException("Failed to process checkout", e, Response.Status.INTERNAL_SERVER_ERROR);
         } finally {
             span.finish();
         }
     }
     public Response addOrderFallback(Order order) {
-        LOGGER.info("Fallback activated: Unable to add order at the moment for token: " + optSubject.getValue().orElse("default_value"));
+        LOGGER.info("Fallback activated: Unable to process checkout at the moment.");
         Map<String, String> response = new HashMap<>();
-        response.put("description", "Unable to add order at the moment. Please try again later.");
-        return Response.ok(response).build();
+        response.put("description", "Unable to process checkout at the moment. Please try again later.");
+        return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                .entity(new Gson().toJson(response))
+                .build();
     }
+
 }
