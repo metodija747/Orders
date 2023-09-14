@@ -46,11 +46,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 @Path("/orders")
+@SecurityRequirement(name = "jwtAuth")
 @Log(LogParams.METRICS)
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
 @RequestScoped
-@SecurityRequirement(name = "jwtAuth")
 public class OrdersResource {
 
     @Inject
