@@ -225,14 +225,24 @@ public class OrdersResource {
             return Response.ok().entity(new Gson().toJson(responseBody)).build();
 
         } catch (DynamoDbException e) {
-            LOGGER.log(Level.SEVERE, "Failed to obtain user's orders", e);
+            LOGGER.log(Level.INFO, "Failed to obtain user's orders", e);
             span.setTag("error", true);
             Map<String, Object> responseBody = new HashMap<>();
             responseBody.put("description", "Failed to obtain user's orders. Please try again later.");
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity(new Gson().toJson(responseBody))
                     .build();
-        }finally {
+        }
+        catch (Exception e){
+            LOGGER.log(Level.INFO, "Failed to obtain user's orders", e);
+            Map<String, Object> responseBody = new HashMap<>();
+            responseBody.put("description", "Failed to obtain user's orders. Please try again later.");
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(new Gson().toJson(responseBody))
+                    .build();
+        }
+
+        finally {
             span.finish();
         }
     }
