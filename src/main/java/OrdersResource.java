@@ -339,8 +339,8 @@ public class OrdersResource {
                 CartServiceApi api = RestClientBuilder.newBuilder()
                         .baseUrl(new URL(cartServiceUrl.get().toString()))
                         .build(CartServiceApi.class);
-
-                Response response = api.deleteCart();
+                String authHeader = "Bearer " + jwt.getRawToken();
+                Response response = api.deleteCart(authHeader);
 
                 if (response.getStatus() != Response.Status.OK.getStatusCode()) {
                     throw new RuntimeException("Failed : HTTP error code : " + response.getStatus());

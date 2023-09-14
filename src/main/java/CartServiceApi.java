@@ -9,5 +9,5 @@ public interface CartServiceApi {
 
     @DELETE
     @Produces(MediaType.APPLICATION_JSON)
-    Response deleteCart();
+    Response deleteCart(@HeaderParam("Authorization") String authHeader);
 }
