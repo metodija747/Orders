@@ -61,7 +61,7 @@ kumuluzee:
     #      enabled: true
     #      type: both
     #      level: FINE
-    #      period-s: 60
+    #      period-s:  60
     checks:
       disk-space-health-check:
         threshold: 100000000
