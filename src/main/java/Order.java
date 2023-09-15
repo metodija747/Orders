@@ -7,7 +7,7 @@ public class Order {
     private String orderListStr;
     private Double totalPrice;
 
-    // Getters
+    // Gett  ers
     public String getEmail() {
         return email;
     }
