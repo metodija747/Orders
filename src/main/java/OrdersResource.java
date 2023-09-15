@@ -266,9 +266,17 @@ public class OrdersResource {
             @APIResponse(responseCode = "401", description = "Unauthorized access, Invalid token"),
             @APIResponse(responseCode = "500", description = "Internal Server Error")
     })
-    @RequestBody(description = "Order object that needs to be processed", required = true,
-            content = @Content(schema = @Schema(implementation = Order.class)))
-
+    @RequestBody(
+            description = "Order object that needs to be processed",
+            required = true,
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(
+                            implementation = Order.class,
+                            example = "{ \"email\": \"newemail@example.com\", \"address\": \"123 New St, New City, New State\", \"totalPrice\": \"299.99\", \"orderListStr\": \"[{\\\"quantity\\\":\\\"3\\\",\\\"productName\\\":\\\"New Product 1\\\"},{\\\"quantity\\\":\\\"2\\\",\\\"productName\\\":\\\"New Product 2\\\"},{\\\"quantity\\\":\\\"1\\\",\\\"productName\\\":\\\"New Product 3\\\"}]\", \"telNumber\": \"666777888\", \"surname\": \"NewSurname\", \"name\": \"NewName\" }"
+                    )
+            )
+    )
     @Consumes(MediaType.APPLICATION_JSON)
     @Counted(name = "addOrderCount", description = "Count of addOrder calls")
     @Timed(name = "addOrderTime", description = "Time taken to add a order")
