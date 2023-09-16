@@ -165,6 +165,9 @@ public class OrdersResource {
         if (jwt == null) {
             LOGGER.log(Level.SEVERE, "Token verification failed");
             return Response.status(Response.Status.UNAUTHORIZED)
+                    .header("Access-Control-Allow-Origin", "*")
+                    .header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+                    .header("Access-Control-Allow-Headers", "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent")
                     .entity("Invalid token.")
                     .build();
         }
@@ -222,24 +225,20 @@ public class OrdersResource {
             responseBody.put("totalPages", totalPages);
             span.setTag("completed", true);
             LOGGER.log(Level.INFO, "User's orders obtained successfully");
-            return Response.ok().entity(new Gson().toJson(responseBody)).build();
-
+            return Response.ok()
+                    .header("Access-Control-Allow-Origin", "*")
+                    .header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+                    .header("Access-Control-Allow-Headers", "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent")
+                    .entity(new Gson().toJson(responseBody))
+                    .build();
         } catch (DynamoDbException e) {
             LOGGER.log(Level.INFO, "Failed to obtain user's orders", e);
             span.setTag("error", true);
-            Map<String, Object> responseBody = new HashMap<>();
-            responseBody.put("description", "Failed to obtain user's orders. Please try again later.");
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(new Gson().toJson(responseBody))
-                    .build();
+            throw new WebApplicationException("Failed to obtain user's orders. Please try again later.", e, Response.Status.INTERNAL_SERVER_ERROR);
         }
         catch (Exception e){
             LOGGER.log(Level.INFO, "Failed to obtain user's orders", e);
-            Map<String, Object> responseBody = new HashMap<>();
-            responseBody.put("description", "Failed to obtain user's orders. Please try again later.");
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(new Gson().toJson(responseBody))
-                    .build();
+            throw new WebApplicationException("Failed to obtain user's orders. Please try again later.", e, Response.Status.INTERNAL_SERVER_ERROR);
         }
 
         finally {
@@ -252,6 +251,9 @@ public class OrdersResource {
         Map<String, String> response = new HashMap<>();
         response.put("description", "Unable to fetch orders at the moment. Please try again later.");
         return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                .header("Access-Control-Allow-Origin", "*")
+                .header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+                .header("Access-Control-Allow-Headers", "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent")
                 .entity(new Gson().toJson(response))
                 .build();
     }
@@ -292,6 +294,9 @@ public class OrdersResource {
         if (jwt == null) {
             LOGGER.log(Level.SEVERE, "Token verification failed");
             return Response.status(Response.Status.UNAUTHORIZED)
+                    .header("Access-Control-Allow-Origin", "*")
+                    .header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+                    .header("Access-Control-Allow-Headers", "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent")
                     .entity("Invalid token.")
                     .build();
         }
@@ -357,6 +362,9 @@ public class OrdersResource {
             LOGGER.info("Payment successful");
             span.setTag("completed", true);
             return Response.status(Response.Status.OK)
+                    .header("Access-Control-Allow-Origin", "*")
+                    .header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+                    .header("Access-Control-Allow-Headers", "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent")
                     .entity(new Gson().toJson("Payment successful"))
                     .build();
         } catch (DynamoDbException | MalformedURLException e) {
@@ -372,6 +380,9 @@ public class OrdersResource {
         Map<String, String> response = new HashMap<>();
         response.put("description", "Unable to process checkout at the moment. Please try again later.");
         return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                .header("Access-Control-Allow-Origin", "*")
+                .header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+                .header("Access-Control-Allow-Headers", "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent")
                 .entity(new Gson().toJson(response))
                 .build();
     }
